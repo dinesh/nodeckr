@@ -6,18 +6,20 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dinesh/spotter/provider/kube"
 	gce "google.golang.org/api/compute/v1"
 	gke "google.golang.org/api/container/v1"
 )
 
-type GKEManager struct {
-	GKEService *gke.Service
-	GCEService *gce.Service
-	NodePools  []*NodePool
+type Manager struct {
+	GKEService  *gke.Service
+	GCEService  *gce.Service
+	KubeService *kube.KubeService
+	NodePools   []*NodePool
 	GKERef
 }
 
-func (gm *GKEManager) FetchNodePools() error {
+func (gm *Manager) FetchNodePools() error {
 	nodePoolService := gke.NewProjectsZonesClustersNodePoolsService(gm.GKEService)
 	resp, err := nodePoolService.List(gm.ProjectID, gm.Zone, gm.ClusterName).Do()
 	if err != nil {
@@ -35,7 +37,7 @@ func (gm *GKEManager) FetchNodePools() error {
 
 			resp, err := gm.GCEService.InstanceGroupManagers.ListManagedInstances(project, zone, igmName).Do()
 			if err != nil {
-				return fmt.Errorf("fetching managed instaces: %v", err)
+				return fmt.Errorf("fetching managed instances: %v", err)
 			}
 
 			instances := []string{}
@@ -46,6 +48,7 @@ func (gm *GKEManager) FetchNodePools() error {
 			gm.NodePools = append(gm.NodePools, &NodePool{
 				InstanceGroupName: igmName,
 				Instances:         instances,
+				Manager:           gm,
 			})
 		}
 	}
@@ -53,7 +56,7 @@ func (gm *GKEManager) FetchNodePools() error {
 	return nil
 }
 
-func (gm *GKEManager) Monitor() {
+func (gm *Manager) Monitor() {
 	var wg sync.WaitGroup
 	wg.Add(len(gm.NodePools))
 
@@ -76,8 +79,7 @@ type GKERef struct {
 type NodePool struct {
 	InstanceGroupName string
 	Instances         []string
-
-	GCEService *gce.Service
+	*Manager
 }
 
 func (np *NodePool) monitor() {
@@ -100,6 +102,8 @@ func (np *NodePool) processNode(instanceURL string) error {
 		return err
 	}
 
+	fmt.Printf("host=%s status=%s", name, instance.Status)
+
 	if instance.Status == "RUNNING" {
 		if drainAtStr, ok := instance.Labels[nodeDrainTimeoutKey]; ok {
 			drainAt, err := time.Parse(time.RFC3339, drainAtStr)
@@ -108,8 +112,7 @@ func (np *NodePool) processNode(instanceURL string) error {
 			}
 
 			if drainAt.After(time.Now()) {
-				// drain the node
-
+				np.KubeService.DrainNode(name)
 			}
 		} else {
 			createdAt, err := time.Parse(time.RFC3339, instance.CreationTimestamp)

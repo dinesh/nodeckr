@@ -15,6 +15,12 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/ericchiang/k8s"
+  packages = [".","api/resource","api/unversioned","api/v1","apis/apps/v1alpha1","apis/apps/v1beta1","apis/authentication/v1","apis/authentication/v1beta1","apis/authorization/v1","apis/authorization/v1beta1","apis/autoscaling/v1","apis/autoscaling/v2alpha1","apis/batch/v1","apis/batch/v2alpha1","apis/certificates/v1alpha1","apis/certificates/v1beta1","apis/extensions/v1beta1","apis/imagepolicy/v1alpha1","apis/meta/v1","apis/policy/v1alpha1","apis/policy/v1beta1","apis/rbac/v1alpha1","apis/rbac/v1beta1","apis/settings/v1alpha1","apis/storage/v1","apis/storage/v1beta1","runtime","runtime/schema","util/intstr","watch/versioned"]
+  revision = "fa30591be9ccaacee478995fbba53c648e901483"
+
+[[projects]]
+  branch = "master"
   name = "github.com/golang/protobuf"
   packages = ["proto","ptypes","ptypes/any","ptypes/duration","ptypes/timestamp"]
   revision = "1643683e1b54a9e88ad26d98f81400c8c9d9f4f9"
@@ -39,8 +45,14 @@
 
 [[projects]]
   branch = "master"
+  name = "golang.org/x/tools"
+  packages = ["go/ast/astutil","go/buildutil","go/loader"]
+  revision = "9b61fcc4c548d69663d915801fc4b42a43b6cd9c"
+
+[[projects]]
+  branch = "master"
   name = "google.golang.org/api"
-  packages = ["compute/v1","container/v1","gensupport","googleapi","googleapi/internal/uritemplates","internal","option"]
+  packages = ["compute/v1","container/v1","gensupport","googleapi","googleapi/internal/uritemplates","googleapi/transport","internal","option","transport/http"]
   revision = "9e2045da407b8bc1df9bc5c14d4d1a7e7e182e05"
 
 [[projects]]
@@ -61,9 +73,15 @@
   revision = "f7bf885db0b7479a537ec317c6e48ce53145f3db"
   version = "v1.7.0"
 
+[[projects]]
+  branch = "v2"
+  name = "gopkg.in/yaml.v2"
+  packages = ["."]
+  revision = "eb3733d160e74a9c7e442f435eb3bea458e1d19f"
+
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "a9f7ab2766ff8e6535ab166c5cf40af3ab9af5bae2cc5169439b868d78fe4bd3"
+  inputs-digest = "b0784f86da7984bad3249ab0234741069777007b0cb5a1399971f4a79d1ffd4e"
   solver-name = "gps-cdcl"
   solver-version = 1

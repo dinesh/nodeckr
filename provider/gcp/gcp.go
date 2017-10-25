@@ -3,6 +3,8 @@ package gcp
 import (
 	"context"
 
+	"github.com/dinesh/spotter/provider/kube"
+
 	gce "google.golang.org/api/compute/v1"
 	gke "google.golang.org/api/container/v1"
 )
@@ -12,7 +14,7 @@ const (
 )
 
 // NewManager initiates GKEManager with required services
-func NewManager(zone, clusterName, keyPath, kubeConfigPath string) (*GKEManager, error) {
+func NewManager(zone, clusterName, keyPath, kubeConfigPath string) (*Manager, error) {
 	ctx := context.TODO()
 	projectID, err := getProjectID(keyPath)
 	if err != nil {
@@ -24,7 +26,7 @@ func NewManager(zone, clusterName, keyPath, kubeConfigPath string) (*GKEManager,
 		return nil, err
 	}
 
-	manager := &GKEManager{
+	manager := &Manager{
 		GKERef: GKERef{
 			ProjectID:   projectID,
 			Zone:        zone,
@@ -47,6 +49,10 @@ func NewManager(zone, clusterName, keyPath, kubeConfigPath string) (*GKEManager,
 		return nil, err
 	}
 	manager.GCEService = gceService
+
+	if manager.KubeService, err = kube.NewService(kubeConfigPath); err != nil {
+		return nil, err
+	}
 
 	return manager, nil
 }

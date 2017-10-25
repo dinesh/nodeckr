@@ -1,3 +1,7 @@
 
 [[constraint]]
     name = "google.golang.org/api"
+
+[[constraint]]
+    name = "github.com/ericchiang/k8s"
+    branch = "master"
