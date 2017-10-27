@@ -26,6 +26,12 @@
   revision = "1643683e1b54a9e88ad26d98f81400c8c9d9f4f9"
 
 [[projects]]
+  name = "github.com/rs/zerolog"
+  packages = [".","internal/json","log"]
+  revision = "3ac71fc58dbd43122668a912b755b0979ba9ce1f"
+  version = "v1.3.0"
+
+[[projects]]
   branch = "master"
   name = "golang.org/x/net"
   packages = ["context","context/ctxhttp","http2","http2/hpack","idna","internal/timeseries","lex/httplex","trace"]
@@ -82,6 +88,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "b0784f86da7984bad3249ab0234741069777007b0cb5a1399971f4a79d1ffd4e"
+  inputs-digest = "af46a79925c8ec346f27651214d2febb63eb05c66a0e811b1ffcea0d649af1f1"
   solver-name = "gps-cdcl"
   solver-version = 1

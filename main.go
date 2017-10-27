@@ -1,11 +1,12 @@
 package main
 
 import (
-	"log"
 	"os"
 
 	"github.com/codegangsta/cli"
 	"github.com/dinesh/spotter/cmd"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
 var (
@@ -36,7 +37,9 @@ func main() {
 		},
 	}
 
+	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+
 	if err := app.Run(os.Args); err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err).Msg("can't start the cli")
 	}
 }
