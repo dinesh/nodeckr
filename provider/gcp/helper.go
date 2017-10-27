@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	gke "google.golang.org/api/container/v1"
 	"google.golang.org/api/option"
@@ -45,6 +47,18 @@ func getProjectID(keyPath string) (string, error) {
 	}
 
 	return cred.ProjectID, nil
+}
+
+func makeTimestamp(t time.Time) int64 {
+	return t.UnixNano() / int64(1000*time.Millisecond)
+}
+
+func parseTimestamp(value string) (t time.Time, err error) {
+	i, err := strconv.ParseInt(value, 10, 64)
+	if err != nil {
+		return t, err
+	}
+	return time.Unix(i, 0), nil
 }
 
 func newHTTPClient(ctx context.Context, keyPath string) (*http.Client, error) {

@@ -1,8 +1,14 @@
 package cmd
 
 import (
+	"time"
+
 	"github.com/codegangsta/cli"
 	"github.com/dinesh/spotter/provider/gcp"
+)
+
+var (
+	doneC = make(chan struct{}, 1)
 )
 
 func Start(c *cli.Context) error {
@@ -21,7 +27,17 @@ func Start(c *cli.Context) error {
 		return err
 	}
 
-	manager.Monitor()
+	// TODO: make it random; jitter
+	ticker := time.NewTicker(time.Minute * 1)
+
+	for {
+		select {
+		case <-doneC:
+			return nil
+		case <-ticker.C:
+			manager.Monitor()
+		}
+	}
 
 	return nil
 }

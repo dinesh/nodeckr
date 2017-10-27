@@ -36,5 +36,10 @@ func loadK8sClient(kubeconfigPath string) (*k8s.Client, error) {
 		return nil, fmt.Errorf("Unmarshal kubeconfig error:\n%v", err)
 	}
 
-	return k8s.NewClient(&config)
+	c, err := k8s.NewClient(&config)
+	if err != nil {
+		return nil, fmt.Errorf("creating k8s.Client: %v", err)
+	}
+
+	return c, nil
 }

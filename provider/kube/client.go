@@ -7,15 +7,13 @@ import (
 	"github.com/ericchiang/k8s"
 )
 
-type KubernetesClient interface {
-	DrainNode(string) error
-}
-
 type KubeService struct {
 	*k8s.Client
 }
 
 func NewService(kubeConfigPath string) (*KubeService, error) {
+	return nil, nil
+
 	client, err := loadK8sClient(kubeConfigPath)
 	if err != nil {
 		return nil, err

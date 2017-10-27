@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	nodeDrainTimeoutKey = "spotter/drain-at"
+	nodeDrainTimeoutKey = "spotter-drain-at"
 )
 
 // NewManager initiates GKEManager with required services
