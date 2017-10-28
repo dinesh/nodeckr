@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/dinesh/spotter/provider/kube"
+	"github.com/rs/zerolog/log"
 
 	gce "google.golang.org/api/compute/v1"
 	gke "google.golang.org/api/container/v1"
@@ -51,7 +52,10 @@ func NewManager(zone, clusterName, keyPath, kubeConfigPath string) (*Manager, er
 	manager.GCEService = gceService
 
 	if manager.KubeService, err = kube.NewService(kubeConfigPath); err != nil {
-		return nil, err
+		if !debugMode {
+			return nil, err
+		}
+		log.Warn().Err(err).Msg("ignoring because of debugMode")
 	}
 
 	return manager, nil

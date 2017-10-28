@@ -15,9 +15,11 @@ import (
 	gke "google.golang.org/api/container/v1"
 )
 
-var (
+var debugMode bool
+
+func init() {
 	debugMode = os.Getenv("SPOTTER_DEBUG") == "1"
-)
+}
 
 type Manager struct {
 	GKEService  *gke.Service
@@ -68,8 +70,6 @@ func (gm *Manager) FetchNodePools() error {
 }
 
 func (gm *Manager) Monitor() {
-	log.Print("triggerd Monitor loop")
-
 	var wg sync.WaitGroup
 	wg.Add(len(gm.NodePools))
 
@@ -99,14 +99,14 @@ func (np *NodePool) monitor() {
 	var wg sync.WaitGroup
 	wg.Add(len(np.Instances))
 
-	log.Printf("In Nodepool Monitor loop for %s\n", np.InstanceGroupName)
+	log.Printf("Monitoring nodepool:%s\n", np.InstanceGroupName)
 
 	for _, instance := range np.Instances {
 		go func(instance string) {
 			defer wg.Done()
 
 			if err := np.processNode(instance); err != nil {
-				fmt.Printf("Error while processing node %s: %v\n", instance, err)
+				fmt.Printf("Error while processing node %v\n", err)
 			}
 		}(instance)
 	}
@@ -121,7 +121,6 @@ func (np *NodePool) processNode(instanceURL string) error {
 	}
 
 	log.Info().Str("host", name).Str("status", instance.Status)
-
 	now := time.Now()
 
 	if instance.Status == "RUNNING" {
@@ -130,16 +129,20 @@ func (np *NodePool) processNode(instanceURL string) error {
 			if err != nil {
 				return err
 			}
-			// if draining timeout is in past, and we somehow missed it, we reset the drain timeout
-			if drainAt.Before(now) {
-				log.Warn().Str("node", name).Time("time", drainAt).Msg("didn't get drained as scheduled")
-				updateDrainingInstanceLabel(name, project, zone, instance, np.GCEService)
-			} else if drainAt.Sub(time.Now()) <= time.Minute {
-				// np.KubeService.DrainNode(name)
-				np.deleteNode(name)
+
+			if drainAt.Sub(now).Minutes() < 0 {
+				np.expireNode(name)
 			} else {
-				log.Info().Str("node", name).Time("time", drainAt).Msg("ignoring because of healthy drain period")
+				difference := drainAt.Sub(now).Hours()
+				unit := "Hrs"
+				if difference < 1 {
+					difference = drainAt.Sub(now).Minutes()
+					unit = "Min"
+				}
+				log.Info().Str("node", name).
+					Msgf("ignoring because of healthy drain period: %.2f %s", difference, unit)
 			}
+
 		} else {
 			updateDrainingInstanceLabel(name, project, zone, instance, np.GCEService)
 		}
@@ -150,11 +153,26 @@ func (np *NodePool) processNode(instanceURL string) error {
 	return nil
 }
 
-func (np *NodePool) deleteNode(name string) error {
-	log.Info().Str("name", name).Msg("deleting node")
-	_, err := np.GCEService.Instances.Delete(np.ProjectID, np.Zone, name).Do()
+func (np *NodePool) expireNode(name string) error {
+	log.Info().Str("node", name).Msg("expiring node")
 
-	return err
+	if np.KubeService != nil {
+		if err := np.KubeService.SetUnschedulableState(name, true); err != nil {
+			return err
+		}
+
+		if err := np.KubeService.DrainNode(name); err != nil {
+			return err
+		}
+	}
+
+	log.Info().Str("name", name).Msg("deleting node")
+	op, err := np.GCEService.Instances.Delete(np.ProjectID, np.Zone, name).Do()
+	if err != nil {
+		return fmt.Errorf("deleting node: %v", err)
+	}
+
+	return waitForOperation(np.GCEService, np.ProjectID, np.Zone, op)
 }
 
 func updateDrainingInstanceLabel(host, projectID, zone string, instance *gce.Instance, gceService *gce.Service) error {
