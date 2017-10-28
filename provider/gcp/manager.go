@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dinesh/spotter/provider/kube"
+	kube "github.com/dinesh/nodeckr/kubernetes"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	gce "google.golang.org/api/compute/v1"
@@ -21,22 +21,35 @@ func init() {
 	debugMode = os.Getenv("SPOTTER_DEBUG") == "1"
 }
 
+// GKERef contains reference to any GCP resource having project, zone
+type GKERef struct {
+	ProjectID    string
+	Zone         string
+	ResourceName string
+}
+
+// Manager discovers preemptible nodes and tries to maintain capacity constant
+// when they are about to die.
 type Manager struct {
 	GKEService  *gke.Service
 	GCEService  *gce.Service
 	KubeService *kube.KubeService
-	NodePools   []*NodePool
+
+	// a map of instance to nodePool
+	Instances []string
+
 	GKERef
 }
 
-func (gm *Manager) FetchNodePools() error {
+func (gm *Manager) fetchPreemptibleNodes() error {
 	nodePoolService := gke.NewProjectsZonesClustersNodePoolsService(gm.GKEService)
-	resp, err := nodePoolService.List(gm.ProjectID, gm.Zone, gm.ClusterName).Do()
+	resp, err := nodePoolService.List(gm.ProjectID, gm.Zone, gm.ResourceName).Do()
 	if err != nil {
 		return fmt.Errorf("fetching nodePool list: %v", err)
 	}
 
 	log.Printf("Number of nodepools: %d\n", len(resp.NodePools))
+	var preemptibleNodes []string
 
 	for _, pool := range resp.NodePools {
 		if pool.Config.Preemptible {
@@ -58,64 +71,44 @@ func (gm *Manager) FetchNodePools() error {
 			log.Printf("NodePool %s have %d preemptible nodes in %s group\n",
 				pool.Name, len(instances), igmName)
 
-			gm.NodePools = append(gm.NodePools, &NodePool{
-				InstanceGroupName: igmName,
-				Instances:         instances,
-				Manager:           gm,
-			})
+			preemptibleNodes = append(preemptibleNodes, instances...)
+		}
+	}
+
+	// select uniq nodes
+	var existed map[string]bool
+	gm.Instances = []string{}
+	for _, i := range preemptibleNodes {
+		if _, ok := existed[i]; ok {
+			gm.Instances = append(gm.Instances, i)
 		}
 	}
 
 	return nil
 }
 
+// Monitor pools the status of nodes
 func (gm *Manager) Monitor() {
+	gm.fetchPreemptibleNodes()
+
 	var wg sync.WaitGroup
-	wg.Add(len(gm.NodePools))
+	wg.Add(len(gm.Instances))
 
-	for _, pool := range gm.NodePools {
-		go func(pool *NodePool) {
-			defer wg.Done()
-			pool.monitor()
-		}(pool)
-	}
-
-	wg.Wait()
-}
-
-type GKERef struct {
-	ProjectID   string
-	Zone        string
-	ClusterName string
-}
-
-type NodePool struct {
-	InstanceGroupName string
-	Instances         []string
-	*Manager
-}
-
-func (np *NodePool) monitor() {
-	var wg sync.WaitGroup
-	wg.Add(len(np.Instances))
-
-	log.Printf("Monitoring nodepool:%s\n", np.InstanceGroupName)
-
-	for _, instance := range np.Instances {
+	for _, instance := range gm.Instances {
 		go func(instance string) {
 			defer wg.Done()
 
-			if err := np.processNode(instance); err != nil {
-				fmt.Printf("Error while processing node %v\n", err)
+			if err := gm.processNode(instance); err != nil {
+				log.Warn().Err(err).Str("instaceURL", instance)
 			}
 		}(instance)
 	}
 	wg.Wait()
 }
 
-func (np *NodePool) processNode(instanceURL string) error {
+func (gm *Manager) processNode(instanceURL string) error {
 	project, zone, name, err := parseGceURL(instanceURL, "instances")
-	instance, err := np.GCEService.Instances.Get(project, zone, name).Do()
+	instance, err := gm.GCEService.Instances.Get(project, zone, name).Do()
 	if err != nil {
 		return err
 	}
@@ -131,7 +124,7 @@ func (np *NodePool) processNode(instanceURL string) error {
 			}
 
 			if drainAt.Sub(now).Minutes() < 0 {
-				np.expireNode(name)
+				gm.expireNode(name)
 			} else {
 				difference := drainAt.Sub(now).Hours()
 				unit := "Hrs"
@@ -144,7 +137,7 @@ func (np *NodePool) processNode(instanceURL string) error {
 			}
 
 		} else {
-			updateDrainingInstanceLabel(name, project, zone, instance, np.GCEService)
+			updateDrainingInstanceLabel(name, project, zone, instance, gm.GCEService)
 		}
 	} else {
 		log.Info().Str("node", name).Str("status", instance.Status).Msg("ignoring node because of status")
@@ -153,26 +146,26 @@ func (np *NodePool) processNode(instanceURL string) error {
 	return nil
 }
 
-func (np *NodePool) expireNode(name string) error {
+func (gm *Manager) expireNode(name string) error {
 	log.Info().Str("node", name).Msg("expiring node")
 
-	if np.KubeService != nil {
-		if err := np.KubeService.SetUnschedulableState(name, true); err != nil {
+	if gm.KubeService != nil {
+		if err := gm.KubeService.SetUnschedulableState(name, true); err != nil {
 			return err
 		}
 
-		if err := np.KubeService.DrainNode(name); err != nil {
+		if err := gm.KubeService.DrainNode(name); err != nil {
 			return err
 		}
 	}
 
 	log.Info().Str("name", name).Msg("deleting node")
-	op, err := np.GCEService.Instances.Delete(np.ProjectID, np.Zone, name).Do()
+	op, err := gm.GCEService.Instances.Delete(gm.ProjectID, gm.Zone, name).Do()
 	if err != nil {
 		return fmt.Errorf("deleting node: %v", err)
 	}
 
-	return waitForOperation(np.GCEService, np.ProjectID, np.Zone, op)
+	return waitForOperation(gm.GCEService, gm.ProjectID, gm.Zone, op)
 }
 
 func updateDrainingInstanceLabel(host, projectID, zone string, instance *gce.Instance, gceService *gce.Service) error {

@@ -4,19 +4,23 @@ import (
 	"os"
 
 	"github.com/codegangsta/cli"
-	"github.com/dinesh/spotter/cmd"
+	"github.com/dinesh/nodeckr/cmd"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
 
 var (
+	//Version of nodeckr binary
 	version = "undefined"
+
+	//Build ID of nodeckr binary
+	build = "undefined"
 )
 
 func main() {
 	app := cli.NewApp()
 	app.Usage = "Manage GKE cluster using preemptible instances"
-	app.Version = version
+	app.Version = Version
 	app.Action = cmd.Start
 	app.Flags = []cli.Flag{
 		&cli.StringFlag{
@@ -34,6 +38,11 @@ func main() {
 		&cli.StringFlag{
 			Name:  "kubeconfig",
 			Usage: "Path of kubernetes config",
+		},
+		&cli.IntFlag{
+			Name:  "interval",
+			Usage: "interval in Minutes to pool the cluster",
+			Value: 10,
 		},
 	}
 

@@ -1,4 +1,4 @@
-package kube
+package kubernetes
 
 import (
 	"context"
@@ -9,10 +9,12 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+// KubeService wraps kubernetes and implement function to migrate workload when we expire a node
 type KubeService struct {
 	*k8s.Client
 }
 
+// NewService initiates KubeService
 func NewService(kubeConfigPath string) (*KubeService, error) {
 	client, err := loadK8sClient(kubeConfigPath)
 	if err != nil {
@@ -28,6 +30,7 @@ func (kc *KubeService) GetNode(name string) (node *apiv1.Node, err error) {
 	return
 }
 
+//SetUnschedulableState updates pod scheduling ability for a given node
 func (kc *KubeService) SetUnschedulableState(name string, unschedulable bool) (err error) {
 	node, err := kc.GetNode(name)
 
@@ -42,6 +45,7 @@ func (kc *KubeService) SetUnschedulableState(name string, unschedulable bool) (e
 	return
 }
 
+// DrainNode drains all of the pods except DaemonSet for a given node
 func (kc *KubeService) DrainNode(name string) error {
 	fieldSelector := k8s.QueryParam("fieldSelector", "spec.nodeName="+name+",metadata.namespace!=kube-system")
 	podList, err := kc.Client.CoreV1().ListPods(context.Background(), k8s.AllNamespaces, fieldSelector)

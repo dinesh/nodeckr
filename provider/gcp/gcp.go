@@ -3,9 +3,8 @@ package gcp
 import (
 	"context"
 
-	"github.com/dinesh/spotter/provider/kube"
+	kube "github.com/dinesh/nodeckr/kubernetes"
 	"github.com/rs/zerolog/log"
-
 	gce "google.golang.org/api/compute/v1"
 	gke "google.golang.org/api/container/v1"
 )
@@ -29,9 +28,9 @@ func NewManager(zone, clusterName, keyPath, kubeConfigPath string) (*Manager, er
 
 	manager := &Manager{
 		GKERef: GKERef{
-			ProjectID:   projectID,
-			Zone:        zone,
-			ClusterName: clusterName,
+			ProjectID:    projectID,
+			Zone:         zone,
+			ResourceName: clusterName,
 		},
 	}
 
